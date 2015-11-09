@@ -1,0 +1,55 @@
+---
+- hosts: pi
+  remote_user: pi
+  tasks:
+  - name: Update apt cache
+    become: yes
+    apt: update_cache=yes cache_valid_time=3600
+
+  - name: Install packages
+    become: yes
+    apt: pkg=build-essential state=present
+
+  - name: Install packages
+    become: yes
+    apt: pkg=python-dev state=present
+
+  - name: Install packages
+    become: yes
+    apt: pkg=python-openssl state=present
+  
+  - name: Install packages
+    become: yes
+    apt: pkg=python-pip state=present
+  
+  - name: Install screen package
+    become: yes
+    apt: pkg=screen state=present
+  
+  - name: Install psutil with pip
+    become: yes
+    pip: name=psutil
+  
+  - name: Install IOT Foundation Python with pip
+    become: yes
+    pip:  name=ibmiotf
+
+  - name: Download IOT Foundation Package for Raspberry Pi
+    get_url: url=https://github.com/ibm-messaging/iot-raspberrypi/releases/download/1.0.2/iot_1.0-1_armhf.deb dest=/tmp/iot_1.0-1_armhf.deb sha256sum=55d9b0dc33b16e271a3d3616b7171a08336a95484b806b759acd7f008260e35b
+
+  - name: Install IOT Foundation Package for Raspberry Pi
+    become: yes
+    apt: deb=/tmp/iot_1.0-1_armhf.deb
+
+  ## Download libraries and reference material
+
+  - name: Download IOT Raspberry Pi
+    git: repo=git://github.com/ibm-messaging/iot-raspberrypi.git dest=/home/pi/src/iot-raspberrypi update=no accept_hostkey=yes
+
+  - name: Download Adafruit_Python_DHT
+    git: repo=git://github.com/adafruit/Adafruit_Python_DHT.git dest=/home/pi/src/Adafruit_Python_DHT update=no accept_hostkey=yes
+  - name: Download IOT Foundation Python
+    git: repo=git://github.com/ibm-messaging/iot-python.git dest=/home/pi/src/iot-python update=no accept_hostkey=yes
+  
+  - name: Download IOT Foundation Python fork
+    git: repo=git://github.com/john65/iot-python.git dest=/home/pi/iot-python-fork update=no accept_hostkey=yes
