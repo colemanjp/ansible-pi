@@ -1,55 +1,117 @@
 ---
 - hosts: pi
+  vars: 
+    home: '/home/pi'
   remote_user: pi
   tasks:
+
+  - name: Create /home/pi/src directory
+    file: path={{ home }}/src state=directory owner=pi group=pi mode=0775
+
   - name: Update apt cache
     become: yes
     apt: update_cache=yes cache_valid_time=3600
 
-  - name: Install packages
+  - name: Install build-essential package
     become: yes
-    apt: pkg=build-essential state=present
-
-  - name: Install packages
-    become: yes
-    apt: pkg=python-dev state=present
-
-  - name: Install packages
-    become: yes
-    apt: pkg=python-openssl state=present
+    apt: pkg=build-essential
   
-  - name: Install packages
+  - name: Install python-openssl package
     become: yes
-    apt: pkg=python-pip state=present
+    apt: pkg=python-openssl
+  
+  - name: Remove python-pip package (not compatible with some of the modules below)
+    become: yes
+    apt: pkg=python-pip state=absent
+  
+  - name: Install python-dev package
+    become: yes
+    apt: pkg=python-dev
   
   - name: Install screen package
     become: yes
-    apt: pkg=screen state=present
+    apt: pkg=screen
+
+  - name: Install pip with easy install
+    become: yes
+    easy_install: name=pip
   
   - name: Install psutil with pip
     become: yes
     pip: name=psutil
-  
+ 
+## Install current Nodejs from binary.  
+  - name: Download nodejs LTS
+    get_url: url=https://nodejs.org/dist/v4.2.4/node-v4.2.4-linux-armv7l.tar.gz dest={{ home }}/src/node-v4.2.4-linux-armv7l.tar.gz sha256sum=7d3645a032b56aefe1e1a023a6592b4900d4966312d034beac352bb833a74b60
+
+  - name: Unzip nodejs
+    become: yes
+    unarchive: src={{ home }}/src/node-v4.2.4-linux-armv7l.tar.gz dest=/usr/local copy=no owner=root group=staff
+
+  - name: Symlink node binary
+    become: yes
+    file: src=/usr/local/node-v4.2.4-linux-armv7l/bin/node  dest=/usr/local/bin/node owner=root group=staff state=link
+
+  - name: Symlink npm binary
+    become: yes
+    file: src=/usr/local/node-v4.2.4-linux-armv7l/bin/npm  dest=/usr/local/bin/npm owner=root group=staff state=link
+
+##  Install IBM Bluemix Utilities 
   - name: Install IOT Foundation Python with pip
     become: yes
     pip:  name=ibmiotf
 
-  - name: Download IOT Foundation Package for Raspberry Pi
-    get_url: url=https://github.com/ibm-messaging/iot-raspberrypi/releases/download/1.0.2/iot_1.0-1_armhf.deb dest=/tmp/iot_1.0-1_armhf.deb sha256sum=55d9b0dc33b16e271a3d3616b7171a08336a95484b806b759acd7f008260e35b
+  - name: Download IBM Bluemix IOT Foundation Package for Raspberry Pi
+    get_url: url=https://github.com/ibm-messaging/iot-raspberrypi/releases/download/1.0.2.1/iot_1.0-2_armhf.deb dest={{ home }}/src/iot_1.0-2_armhf.deb sha256sum=46b729e726b280987d4604caf7c59f3a2b192e9a86330edbec8a4d45543b65b7
 
-  - name: Install IOT Foundation Package for Raspberry Pi
+  - name: Install IBM Bluemix IOT Foundation Package for Raspberry Pi
     become: yes
-    apt: deb=/tmp/iot_1.0-1_armhf.deb
+    apt: deb={{ home }}/src/iot_1.0-2_armhf.deb
 
-  ## Download libraries and reference material
+## Install bcm2835 GPIO library needed by node 
+  - name: Download BCM2835 src
+    get_url: url=http://www.airspayce.com/mikem/bcm2835/bcm2835-1.48.tar.gz dest={{ home}}/src/bcm2835-1.48.tar.gz sha256sum=295f66dab533592ce41db8e07befe985645a2e661bbf75dce9c383e61e24cb5f
+ 
+  - name: Unzip BCM2835 src
+    become: no
+    unarchive: src={{ home }}/src/bcm2835-1.48.tar.gz dest={{ home }}/src copy=no owner=pi group=pi
+  
+  - name: Build and Install BCM2835 library
+    become: no
+    shell: "{{ item }}"
+    args: 
+      chdir: "{{ home }}/src/bcm2835-1.48"
+    with_items:
+      - ./configure
+      - make
+      - sudo make install
+
+## Install AWS sample app to verify connectivity
+  - name: Download aws-iot-raspberry-pi-how-to sample app
+    git: repo=git://github.com/sreid/aws-iot-raspberry-pi-how-to.git dest={{ home }}/aws-iot-raspberry-pi-how-to update=no accept_hostkey=yes
+
+  - name: Install AWS SDK with npm inside the sample app
+    become: no
+    npm: name=aws-iot-device-sdk path={{ home }}/aws-iot-raspberry-pi-how-to
+  
+## Install Adafruit Python DHT for use with the DHT11 Sensor
+  - name: Download Adafruit Python DHT
+    git: repo=git://github.com/adafruit/Adafruit_Python_DHT.git dest={{ home }}/src/Adafruit_Python_DHT update=no accept_hostkey=yes
+  
+  - name: Install Adafruit Python DHT
+    shell: "{{ item }}"
+    args: 
+      chdir: "{{ home }}/src/Adafruit_Python_DHT"
+    with_items:
+      - sudo python setup.py install
+  
+## Download libraries and reference material
 
   - name: Download IOT Raspberry Pi
-    git: repo=git://github.com/ibm-messaging/iot-raspberrypi.git dest=/home/pi/src/iot-raspberrypi update=no accept_hostkey=yes
+    git: repo=git://github.com/ibm-messaging/iot-raspberrypi.git dest={{ home }}/src/iot-raspberrypi update=no accept_hostkey=yes
 
-  - name: Download Adafruit_Python_DHT
-    git: repo=git://github.com/adafruit/Adafruit_Python_DHT.git dest=/home/pi/src/Adafruit_Python_DHT update=no accept_hostkey=yes
   - name: Download IOT Foundation Python
-    git: repo=git://github.com/ibm-messaging/iot-python.git dest=/home/pi/src/iot-python update=no accept_hostkey=yes
+    git: repo=git://github.com/ibm-messaging/iot-python.git dest={{ home }}/src/iot-python update=no accept_hostkey=yes
   
   - name: Download IOT Foundation Python fork
-    git: repo=git://github.com/john65/iot-python.git dest=/home/pi/iot-python-fork update=no accept_hostkey=yes
+    git: repo=git://github.com/john65/iot-python.git dest={{ home }}/iot-python-fork update=no accept_hostkey=yes
